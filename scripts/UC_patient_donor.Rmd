@@ -1,0 +1,151 @@
+---
+title: "Patient and donor microbiomes"
+author: "Marcel de Leeuw, (c) GeneCreek 2020"
+date: "2/29/2020"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{"UC_patient_donor"}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=F}
+
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(ggpubr))
+suppressPackageStartupMessages(library(phyloseq))
+
+```
+
+## IMID microbiomes
+
+We use data set SRP183770 containing the microbiomes of healthy controls and immune mediated inflammatory diseases (IMIDs) including ulcerative colitis and Crohn's disease patients. First, we project the precomputed Shannon species diversity index.
+
+```{r IMID.shannon, echo=F}
+
+load("../data/SRP183770_phyloseq.rda")
+SRP183770_mt <- phyloseq::sample_data(SRP183770_phyloseq)
+comparisons <- list(c("UC", "CD"), c("HC", "UC"))
+ggplot(SRP183770_mt, aes(x=status, y=shannon/20)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(comparisons = comparisons, size = 3) +
+  ylab("Shannon species diversity") + xlab("") +
+  theme_classic() +
+  theme(axis.line=element_blank())
+
+```
+
+Next, the strict anaerobe proportion is of interest as well. This metric is computed as the proportion of detected anarobes which are obligate anaerobes. We use the same data set.
+
+```{r IMID.anaerobes, echo=F}
+
+ggplot(SRP183770_mt, aes(x=status, y=anaerobe)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(comparisons = comparisons, size = 3) +
+  ylab("Stric anaerobe proportion") + xlab("") +
+  theme_classic() +
+  theme(axis.line=element_blank())
+
+```
+
+## Modifying patient microbiomes through FMT
+
+Data set SRP108284 containes microbiomes of 20 patients who received a single FMT. Chao species richness gives us the most significant reponse between available diversity/richness measures, although with time there seems to be wash out of the effect.
+
+```{r FMT.richness, echo=F}
+
+load("../data/SRP108284_phyloseq.rda")
+SRP108284_mt <- phyloseq::sample_data(SRP108284_phyloseq)
+comparisons <- list( c("Baseline", "Week 2"),  c("Baseline", "Week 4"))
+ggplot(SRP108284_mt, aes(x=status, y=chao)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(comparisons = comparisons, size = 3) +
+  ylab("Chao species richness") + xlab("") +
+  theme_classic() +
+  theme(axis.line=element_blank())
+
+```
+
+We also found a data set in which the strict anaerobe proportion seems transferrable. The authors of data set SRP198502 selected donors with high fecal butyrate, which is likely produced by obligate anaerobes.
+
+```{r FMT.anaerobes, echo=F}
+
+load("../data/SRP198502_phyloseq.rda")
+SRP198502_mt <- as_tibble(phyloseq::sample_data(SRP198502_phyloseq)) %>%
+  dplyr::filter(day>0 | status %in% c("Donor", "Baseline"))
+comparisons <- list( c("FMT", "Placebo"),  c("FMT", "Donor"), c("Baseline", "FMT"))
+ggplot(SRP198502_mt, aes(x=status, y=anaerobe)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(comparisons = comparisons, size = 3) +
+  ylab("Chao species richness") + xlab("") +
+  theme_classic() +
+  theme(axis.line=element_blank())
+
+```
+
+## Responder and non-responder patient microbiomes
+
+Combining the UC patients in data sets ERP013257, SRP135559, ERP116682 and SRP102742 totaling 49 responders and non-responders to FMT, we tested various microbiome characteristics against the responder status, two of which reached significance: the phylogenetic diversity at screening and the oxygen tolerance post FMT. We use the precomputed tibble of patient metadata for the analysis.
+
+```{r patient.phylodiv, echo=F}
+
+load("../data/patients_mt.rda")
+
+ggpubr::ggboxplot(patients_mt, x="response", y="phylodiv", facet.by="status") +
+  ggpubr::stat_compare_means(size=3, hide.ns=T, label="p.format") +
+  ylim(2, 22) +
+  theme_classic() + ylab(NULL) + xlab(NULL) +
+  theme(axis.line=element_blank(), 
+        strip.background=element_blank())
+```
+
+```{r patient.oxygen, echo=F}
+ggpubr::ggboxplot(patients_mt, x="response", y="oxygen", facet.by="status") +
+  ggpubr::stat_compare_means(size=3, hide.ns=T, label="p.format") +
+  ylim(-.45, .4) +
+  theme_classic() + ylab(NULL) + xlab(NULL) +
+  theme(axis.line=element_blank(), 
+        strip.background=element_blank())
+```
+
+Turning now to dataset ERP013257 which has 12 donors associated with response, partial response or non-response, we find the same two criteria reach significance.
+
+```{r donor.phylodiv, echo=F}
+
+load("../data/ERP013257_mt.rda")
+
+comparisons <- list( c("NR", "PR"), c("PR", "RE"), c("NR", "RE") )
+ggplot(dplyr::filter(ERP013257_mt, type=="Donorstool"), 
+       aes(x=response, y=phylodiv)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(size=3, comparisons = comparisons) +
+  theme_classic() + ylab("phylogenetic diversity") + xlab(NULL) +
+  theme(axis.line=element_blank())
+```
+
+```{r donor.oxygen, echo=F}
+
+ggplot(dplyr::filter(ERP013257_mt, type=="Donorstool"), 
+       aes(x=response, y=oxygen)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(size=3, comparisons = comparisons) +
+  theme_classic() + ylab("phylogenetic diversity") + xlab(NULL) +
+  theme(axis.line=element_blank())
+```
+
+We can now score donors according to these two criteria. We have several samples per donor, for which we compute centroids.
+
+```{r donor.score, echo=F}
+
+df <- ERP013257_mt %>%
+  dplyr::filter(type=="Donorstool") %>%
+  dplyr::select(donorID, oxygen, phylodiv, response)
+centroids <- aggregate(cbind(oxygen,phylodiv)~donorID,data=df,mean)
+df <- merge(df,centroids,by="donorID",suffixes=c("",".centroid"))
+ggplot(df) +
+  geom_point(aes(x=oxygen,y=phylodiv,color=response), size=2) +
+  geom_segment(aes(x=oxygen.centroid, y=phylodiv.centroid, xend=oxygen, yend=phylodiv, color=response)) +
+  scale_colour_manual(values=c(NR="tomato", PR="grey70", RE="seagreen")) +
+  theme_classic() + ylab("phylogenetic diversity") + xlab("oxygen tolerance") +
+  theme(axis.line=element_blank(), legend.position="top")
+```
