@@ -13,6 +13,10 @@ vignette: >
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(Matrix))
 suppressPackageStartupMessages(library(DESeq2))
+suppressPackageStartupMessages(library(randomForest))
+suppressPackageStartupMessages(library(doParallel))
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(pROC))
 suppressPackageStartupMessages(library(SpiecEasi))
 suppressPackageStartupMessages(library(GGally))
 suppressPackageStartupMessages(library(tidytree))
@@ -56,6 +60,45 @@ postFMT_deseq <- tibble(taxon=rownames(sigtab), log2FC=sigtab$log2FoldChange) %>
 
 postFMT_deseq
 ```
+
+## reponder status prediction
+
+We use the DESeq detected species as input for partial least squares classification. Since we have multiple samples per subject, we have to create training and evaluation sets without subject overlap. We do so by sampling the subjects and not the samples, making this sampling account for the repeats of the experiment. We can still use cross-validation inside the training set.
+
+```{r PLS, echo=F}
+
+cl <- makeCluster(6)
+registerDoParallel(cl)
+
+postFMT_auc <- sapply(1:20, function(x) {
+  # we sample subjects, not samples
+  subjects <- unique(postFMT_mt$subjectID)
+  training <- sample(subjects, .8*length(subjects))
+  testing  <- subjects[which(!subjects %in% training)]
+
+  train_data <- data.frame(
+    status=dplyr::filter(postFMT_mt, subjectID %in% training)$response, 
+    as.matrix(t(log(1+1E4*patients_species_comb[postFMT_deseq$taxon,
+           dplyr::filter(postFMT_mt, subjectID %in% training)$sampleID]))))
+  test_data <- data.frame(
+    status=dplyr::filter(postFMT_mt, subjectID %in% testing)$response, 
+    as.matrix(t(log(1+1E4*patients_species_comb[postFMT_deseq$taxon,
+           dplyr::filter(postFMT_mt, subjectID %in% testing)$sampleID]))))
+
+  # we can still use cross-validation
+  fit <- caret::train(
+    status ~ ., method="pls", data=train_data, 
+    preProc = c("center"), proximity = T, 
+    trControl = trainControl(method = "cv", number = 10))
+  pred <- as.numeric(predict(fit, newdata = test_data))
+  pROC::auc(pROC::roc(test_data$status, pred, quiet=T))
+})
+
+stopCluster(cl)
+
+mean(postFMT_auc)
+```
+
 
 ## ecological network generation
 
