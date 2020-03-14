@@ -70,6 +70,8 @@ We use the DESeq detected species as input for partial least squares classificat
 cl <- makeCluster(6)
 registerDoParallel(cl)
 
+# incidentally, this code will stop because there are only non-responders in the testing set
+# rerun the code in that case
 postFMT_auc <- sapply(1:20, function(x) {
   # we sample subjects, not samples
   subjects <- unique(postFMT_mt$subjectID)
@@ -96,7 +98,7 @@ postFMT_auc <- sapply(1:20, function(x) {
 
 stopCluster(cl)
 
-mean(postFMT_auc)
+median(postFMT_auc)
 ```
 
 
@@ -217,6 +219,7 @@ post_FMT_deseq_tree <- tidytree::as_tibble(as.phylo.formula(
   dplyr::left_join(post_FMT_deseq_taxo, by="label") %>%
   dplyr::mutate(association=ifelse(is.na(association), " ", association))
 
+# the following requires ggtree v2 (Bioconductor version 3.10)
 ggtree(as.treedata(post_FMT_deseq_tree), 
        aes(color=association),
        layout="circular") +
