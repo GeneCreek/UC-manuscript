@@ -112,7 +112,8 @@ Turning now to dataset ERP013257 which has 12 donors associated with response, p
 
 ```{r donor.phylodiv, echo=F}
 
-load("../data/ERP013257_mt.rda")
+load("../data/ERP013257_phyloseq.rda")
+ERP013257_mt <- phyloseq::sample_data(ERP013257_phyloseq)
 
 comparisons <- list( c("NR", "PR"), c("PR", "RE"), c("NR", "RE") )
 ggplot(dplyr::filter(ERP013257_mt, type=="Donorstool"), 
