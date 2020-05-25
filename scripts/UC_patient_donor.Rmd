@@ -91,16 +91,16 @@ Combining the UC patients in data sets ERP013257, SRP135559, ERP116682 and SRP10
 
 load("../data/patients_mt.rda")
 
-ggpubr::ggboxplot(patients_mt, x="response", y="phylodiv", facet.by="status") +
+ggpubr::ggboxplot(patients_mt, x="response", y="phylodiv") +
   ggpubr::stat_compare_means(size=3, hide.ns=T, label="p.format") +
-  ylim(2, 22) +
+#  ylim(2, 22) +
   theme_classic() + ylab(NULL) + xlab(NULL) +
   theme(axis.line=element_blank(), 
         strip.background=element_blank())
 ```
 
 ```{r patient.oxygen, echo=F}
-ggpubr::ggboxplot(patients_mt, x="response", y="oxygen", facet.by="status") +
+ggpubr::ggboxplot(patients_mt, x="response", y="oxygen") +
   ggpubr::stat_compare_means(size=3, hide.ns=T, label="p.format") +
   ylim(-.45, .4) +
   theme_classic() + ylab(NULL) + xlab(NULL) +
