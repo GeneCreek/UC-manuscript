@@ -77,7 +77,7 @@ comparisons <- list( c("FMT", "Placebo"),  c("FMT", "Donor"), c("Baseline", "FMT
 ggplot(SRP198502_mt, aes(x=status, y=anaerobe)) +
   geom_boxplot() +
   ggpubr::stat_compare_means(comparisons = comparisons, size = 3) +
-  ylab("Chao species richness") + xlab("") +
+  ylab("Stric anaerobe proportion") + xlab("") +
   theme_classic() +
   theme(axis.line=element_blank())
 
@@ -85,30 +85,82 @@ ggplot(SRP198502_mt, aes(x=status, y=anaerobe)) +
 
 ## Responder and non-responder patient microbiomes
 
-Combining the UC patients in data sets ERP013257, SRP135559, ERP116682 and SRP102742 totaling 49 responders and non-responders to FMT, we tested various microbiome characteristics against the responder status, two of which reached significance: the phylogenetic diversity at screening and the oxygen tolerance post FMT. We use the precomputed tibble of patient metadata for the analysis.
+Combining the UC patients in data sets ERP013257, SRP135559, ERP116682 and SRP102742 totaling 46 responders and non-responders to FMT, we tested various microbiome characteristics against the responder status, two of which reached significance. We use the precomputed tibble of patient metadata for the analysis.
 
-```{r patient.phylodiv, echo=F}
+```{r patient.bsl, echo=F}
 
 load("../data/patients_mt.rda")
 
-ggpubr::ggboxplot(patients_mt, x="response", y="phylodiv") +
-  ggpubr::stat_compare_means(size=3, hide.ns=T, label="p.format") +
-#  ylim(2, 22) +
+my_comparisons = list(c("NR", "RE"))
+ggpubr::ggboxplot(patients_mt, x="response", y="bsl") +
+  ggpubr::stat_compare_means(size=3, comparisons=my_comparisons) +
   theme_classic() + ylab(NULL) + xlab(NULL) +
   theme(axis.line=element_blank(), 
         strip.background=element_blank())
 ```
 
-```{r patient.oxygen, echo=F}
-ggpubr::ggboxplot(patients_mt, x="response", y="oxygen") +
-  ggpubr::stat_compare_means(size=3, hide.ns=T, label="p.format") +
-  ylim(-.45, .4) +
+```{r patient.gram, echo=F}
+ggpubr::ggboxplot(patients_mt, x="response", y="gram") +
+  ggpubr::stat_compare_means(size=3, comparisons=my_comparisons) +
   theme_classic() + ylab(NULL) + xlab(NULL) +
   theme(axis.line=element_blank(), 
         strip.background=element_blank())
 ```
 
-Turning now to dataset ERP013257 which has 12 donors associated with response, partial response or non-response, we find the same two criteria reach significance.
+The predicted average biological safety level (BSL) is indicative of the degree anibiotic resistance (BSL level 2). The dynamics of the BSL can be illustrated with data set ERP013257 in which an antibiotics course prior to FMT was used.
+
+```{r ERP013257.BSL}
+
+load("../data/ERP013257_phyloseq.rda")
+
+ERP013257_mt <- phyloseq::sample_data(ERP013257_phyloseq)
+
+ERP013257_bsl_mt <- ERP013257_mt %>%
+  dplyr::filter(type=="Patientstool", response!="Control") %>%
+  dplyr::group_by(response, day) %>%
+  dplyr::summarize(BSL=median(bsl))
+
+ggplot(ERP013257_bsl_mt, aes(x=day, y=BSL, group=response, shape=response)) +
+  geom_line(color="grey50") + geom_point(size=2, fill="white") +
+  scale_shape_manual(values=c(NR=24, PR=23, RE=22)) +
+  theme_classic() + 
+  theme(axis.line=element_blank(), legend.position=c(.6,.7),
+        text=element_text(family="Open Sans", size=10))
+
+```
+
+
+Turning now to dataset ERP013257 which has 12 donors associated with response, partial response or non-response. First, Unweighted UniFrac ordination shows interesting separation between reponders, and non-responders, with partial reponders in an intermediate position.
+
+```{r donorsOrd}
+
+ERP013257_ps_donor <- phyloseq::prune_samples(
+  dplyr::filter(ERP013257_mt, type=="Donorstool")$sampleID, ERP013257_phyloseq)
+  
+SRP183770_uUF_dist_donor <- phyloseq::UniFrac(ERP013257_ps_donor, weighted=F, normalized=T)
+ERP013257_uUF_donor <- phyloseq::ordinate(
+  ERP013257_ps_donor, method="MDS", distance=SRP183770_uUF_dist_donor)
+
+dfOrd <- tibble(phyloseq::plot_ordination(
+  ERP013257_ps_donor, ERP013257_uUF_donor, 
+  shape="response", axes=c(1,3), type="sites", justDF=T)) %>%
+  dplyr::rename(x=Axis.1, y=Axis.3)
+ERP013257_ord <- merge(dfOrd,aggregate(cbind(mean.x=x,mean.y=y)~response,dfOrd,mean),by="response")
+
+ggplot(ERP013257_ord, aes(x,y,colour=response)) +
+  geom_segment(aes(x=mean.x, y=mean.y, xend=x, yend=y), color="grey70") +
+  geom_point(size=1.5) +
+  geom_point(aes(x=mean.x,y=mean.y),size=3) +
+  xlab("MDS 1 (11.7%)") + ylab("MDS 3 (6.4%)") +
+  scale_colour_manual(values=c(NR="tomato", PR="grey70", RE="seagreen")) +
+  theme_classic() +
+  theme(axis.line=element_blank(), legend.position = "bottom",
+        text=element_text(family="Open Sans", size=8.5),
+        axis.text=element_blank(), axis.ticks=element_blank())
+```
+
+
+Testing microniome phenotypes across reponders, partial responders an non-responders, we find two other phenotypes reach significance.
 
 ```{r donor.phylodiv, echo=F}
 
